@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<title>Family Meal Planner</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{min-height:100vh;background:linear-gradient(160deg,#3D1A3A 0%,#5C2A58 100%);font-family:'Nunito',Arial,sans-serif;padding-bottom:60px;color:#FDF6EC;}
+input,button{font-family:inherit;}
+button{cursor:pointer;}
+.toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);padding:10px 20px;border-radius:20px;font-weight:800;font-size:14px;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,0.3);z-index:9999;display:none;color:#fff;}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:1000;display:none;}
+.sheet{position:fixed;bottom:0;left:0;right:0;background:#2a0f27;border-radius:24px 24px 0 0;z-index:1001;display:none;flex-direction:column;max-height:90vh;}
+.handle{width:36px;height:4px;border-radius:2px;background:rgba(255,255,255,0.2);margin:12px auto 4px;flex-shrink:0;}
+.tab-bar{display:flex;gap:4px;max-width:540px;margin:0 auto;background:rgba(0,0,0,0.2);border-radius:11px;padding:4px;}
+.tab-btn{flex:1;padding:9px 2px;font-weight:800;font-size:11px;border:none;border-radius:8px;background:rgba(255,255,255,0.08);color:#FDF6EC;}
+.mtype-wrap{display:flex;gap:4px;background:rgba(0,0,0,0.15);border-radius:10px;padding:4px;overflow-x:auto;-webkit-overflow-scrolling:touch;}
+.mtype-wrap::-webkit-scrollbar{display:none;}
+.mtype-btn{flex-shrink:0;padding:8px 10px;font-weight:800;font-size:11px;border:none;border-radius:8px;background:rgba(255,255,255,0.08);color:#FDF6EC;white-space:nowrap;}
+.meal-row{display:flex;align-items:center;gap:10px;padding:10px;border-radius:10px;margin-bottom:5px;cursor:pointer;background:rgba(255,255,255,0.04);border:1.5px solid transparent;}
+.meal-row:active{background:rgba(255,255,255,0.1);}
+.meal-row.cur{border-color:#8FAF7E;background:rgba(143,175,126,0.15);}
+.mmbtn{border:none;border-radius:13px 0 0 13px;padding:6px 11px;font-weight:800;font-size:12px;background:rgba(255,255,255,0.1);color:#FDF6EC;}
+.mmdel{border:none;border-radius:0 13px 13px 0;padding:6px 7px;font-weight:800;font-size:10px;background:rgba(255,255,255,0.06);color:#D4ABCF;}
+.dc{background:#FDF6EC;border-radius:14px;padding:13px 12px 11px;box-shadow:0 2px 10px rgba(0,0,0,.18);transition:opacity .2s,transform .2s;}
+.dc.flip{opacity:0;transform:scale(0.94);}
+.nday{background:rgba(255,255,255,0.05);border-radius:12px;padding:12px 14px;margin-bottom:8px;cursor:pointer;}
+.nday.open{border-radius:12px 12px 0 0;background:rgba(255,255,255,0.1);}
+.ndet{background:rgba(255,255,255,0.04);border-radius:0 0 12px 12px;padding:10px 14px 14px;border-top:1px solid rgba(255,255,255,0.06);display:none;}
+.ndet.open{display:block;}
+.popt{border-radius:12px;padding:12px 13px;margin-bottom:8px;cursor:pointer;position:relative;overflow:hidden;border:2px solid rgba(255,255,255,0.09);background:rgba(255,255,255,0.05);}
+.popt.voted{border-color:#8FAF7E;background:rgba(143,175,126,0.15);}
+.popt.winner{border-color:#F5A623;background:rgba(245,166,35,0.14);}
+.pbar{position:absolute;left:0;top:0;bottom:0;background:rgba(143,175,126,0.1);transition:width .4s;}
+.popt.winner .pbar{background:rgba(245,166,35,0.09);}
+.sdot{width:8px;height:8px;border-radius:50%;background:#8FAF7E;display:inline-block;margin-right:5px;}
+.sdot.syncing{background:#F5A623;animation:pulse 1s infinite;}
+.sdot.error{background:#F08080;}
+.gtrack{background:rgba(255,255,255,0.1);border-radius:6px;height:8px;margin-top:4px;}
+.gfill{border-radius:6px;height:100%;transition:width .4s;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+</style>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800&display=swap" rel="stylesheet"/>
+</head>
+<body>
+<div id="toast" class="toast"></div>
+<div id="ov" class="overlay" onclick="closeSheets()"></div>
+
+<!-- Meal Picker Sheet -->
+<div id="msheet" class="sheet">
+  <div class="handle"></div>
+  <div style="padding:10px 18px 12px;border-bottom:1px solid rgba(255,255,255,0.08);flex-shrink:0">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div><div id="mslabel" style="color:rgba(255,255,255,0.45);font-size:11px;font-weight:800;letter-spacing:2px;text-transform:uppercase"></div><div style="color:#FDF6EC;font-size:16px;font-weight:800">Pick a meal</div></div>
+      <button onclick="closeSheets()" style="background:rgba(255,255,255,0.1);border:none;border-radius:50%;width:30px;height:30px;color:#FDF6EC;font-size:15px">x</button>
+    </div>
+    <div style="position:relative">
+      <span style="position:absolute;left:11px;top:50%;transform:translateY(-50%);font-size:15px">&#128269;</span>
+      <input id="msearch" type="text" placeholder="Search..." oninput="renderMS()"
+        style="width:100%;background:rgba(255,255,255,0.1);border:2px solid rgba(255,255,255,0.15);border-radius:10px;padding:9px 12px 9px 34px;font-size:14px;color:#FDF6EC;outline:none"/>
+    </div>
+  </div>
+  <div id="mslist" style="overflow-y:auto;flex:1;padding:8px 14px 4px"></div>
+  <div style="padding:10px 14px 28px;border-top:1px solid rgba(255,255,255,0.08);flex-shrink:0">
+    <div style="display:flex;gap:7px">
+      <input id="msnew" type="text" placeholder="Add a new meal..." onkeydown="if(event.key==='Enter')msAdd()"
+        style="flex:1;background:rgba(255,255,255,0.07);border:1.5px dashed rgba(255,255,255,0.2);border-radius:9px;padding:9px 12px;font-size:13px;color:#FDF6EC;outline:none"/>
+      <button onclick="msAdd()" id="msaddbtn" style="background:#D4ABCF;border:none;border-radius:9px;padding:9px 15px;font-weight:800;font-size:13px;color:#fff">+ Add</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Member Sheet -->
+<div id="amsheet" class="sheet" style="align-items:center;padding-bottom:40px">
+  <div class="handle"></div>
+  <div style="font-size:28px;margin-bottom:8px">&#128100;</div>
+  <div style="font-size:18px;font-weight:800;color:#FDF6EC;margin-bottom:4px">Add Family Member</div>
+  <div style="font-size:13px;color:#D4ABCF;margin-bottom:20px">Who else is in the family?</div>
+  <div style="width:100%;max-width:320px;padding:0 20px">
+    <input id="aminput" type="text" placeholder="Enter their name..." maxlength="20" onkeydown="if(event.key==='Enter')doAddMember()"
+      style="width:100%;background:rgba(255,255,255,0.1);border:2px solid #D4ABCF;border-radius:14px;padding:14px 18px;font-size:16px;color:#FDF6EC;outline:none;margin-bottom:12px;text-align:center;font-weight:700"/>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px">
+      <button onclick="closeSheets()" style="padding:13px;border:none;border-radius:14px;background:rgba(255,255,255,0.08);color:#D4ABCF;font-weight:800;font-size:15px">Cancel</button>
+      <button onclick="doAddMember()" style="padding:13px;border:none;border-radius:14px;background:#F5A623;color:#3D1A3A;font-weight:800;font-size:15px">Add</button>
+    </div>
+    <div style="color:#D4ABCF;font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;text-align:center">Quick add</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center">
+      <button onclick="qadd('Mom')" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:20px;padding:6px 14px;color:#FDF6EC;font-size:13px;font-weight:700">Mom</button>
+      <button onclick="qadd('Dad')" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:20px;padding:6px 14px;color:#FDF6EC;font-size:13px;font-weight:700">Dad</button>
+      <button onclick="qadd('Grandma')" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:20px;padding:6px 14px;color:#FDF6EC;font-size:13px;font-weight:700">Grandma</button>
+      <button onclick="qadd('Grandpa')" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:20px;padding:6px 14px;color:#FDF6EC;font-size:13px;font-weight:700">Grandpa</button>
+      <button onclick="qadd('Son')" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:20px;padding:6px 14px;color:#FDF6EC;font-size:13px;font-weight:700">Son</button>
+      <button onclick="qadd('Daughter')" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:20px;padding:6px 14px;color:#FDF6EC;font-size:13px;font-weight:700">Daughter</button>
+      <button onclick="qadd('Sis')" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:20px;padding:6px 14px;color:#FDF6EC;font-size:13px;font-weight:700">Sis</button>
+      <button onclick="qadd('Bro')" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:20px;padding:6px 14px;color:#FDF6EC;font-size:13px;font-weight:700">Bro</button>
+    </div>
+  </div>
+</div>
+
+<!-- Goals Sheet -->
+<div id="gsheet" class="sheet" style="align-items:center;padding-bottom:40px">
+  <div class="handle"></div>
+  <div style="font-size:28px;margin-bottom:6px">&#127919;</div>
+  <div style="font-size:18px;font-weight:800;color:#FDF6EC;margin-bottom:4px">Daily Diet Goals</div>
+  <div style="font-size:13px;color:#D4ABCF;margin-bottom:20px">Smart Spin will try to match these</div>
+  <div style="width:100%;max-width:340px;padding:0 20px">
+    <div style="margin-bottom:14px">
+      <div style="color:#F5A623;font-size:12px;font-weight:800;margin-bottom:5px">Daily Calories</div>
+      <input id="gcal" type="number" placeholder="e.g. 2000" style="width:100%;background:rgba(255,255,255,0.1);border:2px solid #F5A623;border-radius:12px;padding:11px 14px;font-size:16px;color:#FDF6EC;outline:none;font-weight:700"/>
+    </div>
+    <div style="margin-bottom:14px">
+      <div style="color:#8FAF7E;font-size:12px;font-weight:800;margin-bottom:5px">Daily Protein (g)</div>
+      <input id="gpro" type="number" placeholder="e.g. 150" style="width:100%;background:rgba(255,255,255,0.1);border:2px solid #8FAF7E;border-radius:12px;padding:11px 14px;font-size:16px;color:#FDF6EC;outline:none;font-weight:700"/>
+    </div>
+    <div style="margin-bottom:20px">
+      <div style="color:#D4ABCF;font-size:12px;font-weight:800;margin-bottom:5px">Daily Fat (g)</div>
+      <input id="gfat" type="number" placeholder="e.g. 65" style="width:100%;background:rgba(255,255,255,0.1);border:2px solid #D4ABCF;border-radius:12px;padding:11px 14px;font-size:16px;color:#FDF6EC;outline:none;font-weight:700"/>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <button onclick="closeSheets()" style="padding:13px;border:none;border-radius:14px;background:rgba(255,255,255,0.08);color:#D4ABCF;font-weight:800;font-size:15px">Cancel</button>
+      <button onclick="saveGoals()" style="padding:13px;border:none;border-radius:14px;background:#F5A623;color:#3D1A3A;font-weight:800;font-size:15px">Save Goals</button>
+    </div>
+  </div>
+</div>
+
+<!-- Family Code Screen -->
+<div id="fcscreen" style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:30px">
+  <div style="font-size:50px;margin-bottom:16px">&#127869;&#65039;</div>
+  <h1 style="font-size:26px;font-weight:800;margin-bottom:8px;text-align:center">Family Meal Planner</h1>
+  <p style="color:#D4ABCF;font-size:14px;margin-bottom:36px;text-align:center">Enter your family code to sync with everyone</p>
+  <div style="width:100%;max-width:320px">
+    <div style="background:rgba(255,255,255,0.07);border-radius:16px;padding:24px;margin-bottom:16px">
+      <div style="color:#D4ABCF;font-size:11px;font-weight:800;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px">Create a new family</div>
+      <input id="fname" type="text" placeholder="Family name (e.g. Johnsons)" maxlength="20"
+        style="width:100%;background:rgba(255,255,255,0.1);border:2px solid rgba(255,255,255,0.2);border-radius:10px;padding:10px 14px;font-size:15px;color:#FDF6EC;outline:none;margin-bottom:10px"/>
+      <button onclick="createFam()" style="width:100%;background:#F5A623;color:#3D1A3A;border:none;border-radius:10px;padding:12px;font-size:15px;font-weight:800">Create Family</button>
+    </div>
+    <div style="text-align:center;color:rgba(255,255,255,0.3);font-size:13px;margin-bottom:16px">or</div>
+    <div style="background:rgba(255,255,255,0.07);border-radius:16px;padding:24px">
+      <div style="color:#D4ABCF;font-size:11px;font-weight:800;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px">Join existing family</div>
+      <input id="jcode" type="text" placeholder="Enter family code" maxlength="12"
+        style="width:100%;background:rgba(255,255,255,0.1);border:2px solid rgba(255,255,255,0.2);border-radius:10px;padding:10px 14px;font-size:15px;color:#FDF6EC;outline:none;margin-bottom:10px;text-transform:uppercase"
+        oninput="this.value=this.value.toUpperCase()"/>
+      <button onclick="joinFam()" style="width:100%;background:#8FAF7E;color:#fff;border:none;border-radius:10px;padding:12px;font-size:15px;font-weight:800">Join Family</button>
+    </div>
+    <div id="fcerr" style="color:#F08080;font-size:13px;text-align:center;margin-top:12px;display:none"></div>
+  </div>
+</div>
+
+<!-- Main App -->
+<div id="app" style="display:none">
+  <div style="text-align:center;padding:20px 16px 14px">
+    <div style="font-size:30px;margin-bottom:3px">&#127869;&#65039;</div>
+    <h1 style="font-size:24px;font-weight:800;margin-bottom:2px">Family Meal Planner</h1>
+    <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+      <span id="syncind" style="font-size:12px;color:#8FAF7E"><span class="sdot"></span><span id="synctxt">Synced</span></span>
+      <span style="color:rgba(255,255,255,0.2);font-size:12px">|</span>
+      <span id="fcdisplay" style="font-size:12px;color:#D4ABCF;font-weight:700"></span>
+      <button onclick="leaveFam()" style="font-size:10px;color:rgba(255,255,255,0.3);background:none;border:none;font-weight:700">Leave</button>
+    </div>
+    <div class="tab-bar">
+      <button class="tab-btn" id="t-p" onclick="showTab('p')" style="background:#F5A623;color:#3D1A3A">&#128197; My Week</button>
+      <button class="tab-btn" id="t-n" onclick="showTab('n')">&#128202; Nutrition</button>
+      <button class="tab-btn" id="t-f" onclick="showTab('f')">&#128106; Family</button>
+      <button class="tab-btn" id="t-v" onclick="showTab('v')">&#128499;&#65039; Poll</button>
+    </div>
+  </div>
+
+  <div id="tab-p" style="max-width:960px;margin:0 auto;padding:0 13px">
+    <div style="background:rgba(255,255,255,0.07);border-radius:13px;padding:12px 14px;margin-bottom:13px">
+      <div style="color:#D4ABCF;font-size:10px;font-weight:800;letter-spacing:2px;text-transform:uppercase;margin-bottom:8px">Who are you?</div>
+      <div id="mbtns" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+      <p id="melabel" style="font-size:11px;margin-top:6px;font-weight:800;display:none"></p>
+    </div>
+    <div id="goalsbar" style="display:none;background:rgba(255,255,255,0.06);border-radius:12px;padding:10px 14px;margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span style="font-size:12px;font-weight:800;color:#D4ABCF">&#127919; Today vs Goals</span>
+        <button onclick="openGoals()" style="font-size:11px;color:#F5A623;background:none;border:none;font-weight:800">Edit</button>
+      </div>
+      <div id="goalsdisp" style="display:flex;gap:10px"></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:11px">
+      <div class="mtype-wrap" id="mtbar" style="flex:1"></div>
+      <button onclick="openGoals()" style="background:rgba(255,255,255,0.08);border:none;border-radius:10px;padding:8px 11px;font-size:16px;flex-shrink:0" title="Set diet goals">&#127919;</button>
+    </div>
+    <button onclick="smartSpin()" id="spinbtn" style="width:100%;background:#F5A623;color:#3D1A3A;border:none;border-radius:50px;padding:12px 0;font-size:15px;font-weight:800;margin-bottom:13px;box-shadow:0 4px 18px rgba(245,166,35,0.4)">&#127922; Spin My Whole Week</button>
+    <div id="dgrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(185px,1fr));gap:10px"></div>
+  </div>
+
+  <div id="tab-n" style="display:none;max-width:660px;margin:0 auto;padding:0 13px">
+    <div style="color:#D4ABCF;font-size:10px;font-weight:800;letter-spacing:2px;text-transform:uppercase;margin-bottom:9px">Select family member:</div>
+    <div id="nmbtns" style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:16px"></div>
+    <div id="ncontent"><p style="color:#D4ABCF;text-align:center;font-size:14px;margin-top:40px">Select someone above to see their breakdown.</p></div>
+  </div>
+
+  <div id="tab-f" style="display:none;max-width:960px;margin:0 auto;padding:0 13px">
+    <div class="mtype-wrap" id="ftbar" style="margin-bottom:11px"></div>
+    <div id="fdaybtns" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:14px"></div>
+    <div id="fhdr" style="text-align:center;margin-bottom:14px"></div>
+    <div id="fcards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(165px,1fr));gap:10px;margin-bottom:24px"></div>
+    <div style="color:#FDF6EC;font-weight:800;font-size:14px;margin-bottom:10px">&#128203; Full Week</div>
+    <div style="overflow-x:auto"><table id="ftable" style="width:100%;border-collapse:separate;border-spacing:0 6px"></table></div>
+  </div>
+
+  <div id="tab-v" style="display:none;max-width:640px;margin:0 auto;padding:0 13px">
+    <div style="background:rgba(255,255,255,0.07);border-radius:13px;padding:13px 15px;margin-bottom:16px">
+      <div style="color:#D4ABCF;font-size:10px;font-weight:800;letter-spacing:2px;text-transform:uppercase;margin-bottom:9px">Who's voting?</div>
+      <div id="vmbtns" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+      <p id="vmelbl" style="font-size:11px;margin-top:7px;font-weight:700;display:none"></p>
+    </div>
+    <div id="vcontent"></div>
+  </div>
+</div>
+
+<script>
+var SB_URL="https://tzcsrielasocuboskcrn.supabase.co";
+var SB_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6Y3NyaWVsYXNvY3Vib3NrY3JuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE0OTQzNjMsImV4cCI6MjA5NzA3MDM2M30.5X2EFKj8JlFjiGFK8ErUmKVOmKN5qSDaCqiuJFCNsrU";
+var DAYS=["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+var MTYPES=["Breakfast","Lunch","Dinner","Snacks","Sides"];
+var TM={
+  Breakfast:{e:"🌅",a:"#F5A623",l:"rgba(245,166,35,0.15)",lb:"#c8921e"},
+  Lunch:{e:"☀️",a:"#8FAF7E",l:"rgba(143,175,126,0.15)",lb:"#5a8a4a"},
+  Dinner:{e:"🌙",a:"#D4ABCF",l:"rgba(212,171,207,0.15)",lb:"#9c5a94"},
+  Snacks:{e:"🍎",a:"#7BBFEA",l:"rgba(123,191,234,0.15)",lb:"#4a90b8"},
+  Sides:{e:"🥗",a:"#C3A6FF",l:"rgba(195,166,255,0.15)",lb:"#7a52cc"}
+};
+var MC=["#F5A623","#8FAF7E","#D4ABCF","#7BBFEA","#F08080","#C3A6FF","#80D4B0"];
+var FE=["🍝","🌮","🍗","🍕","🥢","🍔","🐟","🥩","🥘","🫕","🦐","🧀","🥗","🌯","🍲","🍜","🥞","🍳","🥓","🧇","🥑","🫙","🥚","🧆","🍎","🥤","🧃","🫐","🥜","🍌"];
+var NUT={
+  "Scrambled Eggs":{c:220,p:15,f:16},"Pancakes":{c:380,p:8,f:10},"Waffles":{c:410,p:9,f:14},
+  "Oatmeal":{c:290,p:10,f:5},"Avocado Toast":{c:320,p:8,f:18},"Bacon & Eggs":{c:480,p:28,f:36},
+  "French Toast":{c:420,p:12,f:16},"Yogurt & Granola":{c:340,p:14,f:8},"Breakfast Burrito":{c:520,p:22,f:24},
+  "Cereal":{c:280,p:7,f:4},"Bagel & Cream Cheese":{c:430,p:12,f:18},"Smoothie Bowl":{c:310,p:9,f:7},
+  "Grits and Bacon":{c:460,p:18,f:28},"Quiche":{c:380,p:14,f:24},"Walnut & Berry Oatmeal":{c:420,p:12,f:18},
+  "Macadamia Nut Smoothie":{c:340,p:8,f:26},"Almond Milk Chia Pudding":{c:280,p:9,f:14},
+  "Breakfast Hash":{c:380,p:16,f:20},"Eggs Benedict":{c:480,p:20,f:32},
+  "Protein Pancakes":{c:340,p:24,f:10},"Acai Bowl":{c:360,p:8,f:12},"Greek Yogurt Parfait":{c:280,p:18,f:6},
+  "Tomato Soup":{c:200,p:5,f:8},"BLT":{c:390,p:16,f:22},"Tuna Wrap":{c:360,p:28,f:10},
+  "Grilled Cheese Sandwich":{c:440,p:18,f:26},"Meatball Subs":{c:580,p:32,f:26},"Burgers":{c:650,p:36,f:38},
+  "Fried Rice":{c:480,p:14,f:16},"Macaroni and Cheese":{c:520,p:18,f:24},"Caesar Salad":{c:280,p:10,f:18},
+  "Turkey Sandwich":{c:380,p:24,f:12},"Chicken Quesadilla":{c:540,p:32,f:28},"Leftovers":{c:400,p:20,f:15},
+  "Chicken Caesar Wrap":{c:460,p:34,f:18},"Philly Cheesesteak":{c:620,p:38,f:30},
+  "Chicken Noodle Soup":{c:280,p:22,f:8},"Clam Chowder":{c:380,p:16,f:20},"Fish Tacos":{c:460,p:28,f:18},
+  "Pulled Pork Sandwich":{c:580,p:34,f:22},"Greek Salad":{c:260,p:8,f:18},
+  "Veggie Burger":{c:420,p:18,f:16},"Turkey Burger":{c:460,p:36,f:20},
+  "Falafel Wrap":{c:440,p:16,f:18},"Chicken Shawarma":{c:500,p:38,f:20},
+  "Sushi Bowl":{c:440,p:28,f:12},"Sardines & Greens":{c:310,p:28,f:16},"Lentil & Veggie Bowl":{c:340,p:16,f:8},
+  "Baked Ziti":{c:560,p:24,f:22},"Fried Chicken":{c:620,p:38,f:34},
+  "Salmon":{c:420,p:40,f:22},"Steak":{c:580,p:48,f:38},"Pizza":{c:700,p:28,f:30},
+  "Beef Stew":{c:480,p:36,f:18},"Nutty Pudding":{c:340,p:8,f:14},"Super Veggie":{c:240,p:10,f:8},
+  "Rotisserie Chicken":{c:460,p:44,f:24},"Chicken Cordon Bleu":{c:560,p:42,f:30},
+  "Spaghetti and Meatballs":{c:640,p:34,f:24},"Tacos (Tuesday Exclusive)":{c:520,p:28,f:24},
+  "Shrimp Scampi":{c:480,p:32,f:22},"Shrimp and Grits":{c:540,p:30,f:24},
+  "Rice, Chicken & Guacamole":{c:580,p:38,f:20},"Risotto":{c:520,p:14,f:18},
+  "Blueprint Nutty Pudding":{c:380,p:15,f:22},"Black Lentil Soup":{c:310,p:18,f:6},
+  "Chickpea & Spinach Stew":{c:320,p:14,f:8},"Tempeh & Broccoli Stir Fry":{c:360,p:24,f:12},
+  "Roasted Veggie & Quinoa Bowl":{c:390,p:14,f:11},"Sweet Potato & Black Bean Tacos":{c:420,p:12,f:10},
+  "Olive Oil Pasta":{c:480,p:12,f:20},"Chicken Fried Rice":{c:520,p:28,f:18},
+  "Honey Garlic Chicken":{c:480,p:40,f:16},"Beef Tacos":{c:540,p:30,f:26},
+  "Chicken Tikka Masala":{c:560,p:38,f:24},"Pad Thai":{c:580,p:24,f:20},
+  "BBQ Ribs":{c:680,p:44,f:40},"Lamb Chops":{c:560,p:46,f:36},
+  "Crab Cakes":{c:380,p:26,f:20},"Lobster Roll":{c:520,p:30,f:24},
+  "Vegetable Curry":{c:360,p:10,f:14},"Mushroom Risotto":{c:480,p:12,f:18},
+  "Veggie Stir Fry":{c:320,p:10,f:12},"Teriyaki Salmon":{c:440,p:42,f:20},
+  "Pork Chops":{c:480,p:40,f:28},"Turkey Meatloaf":{c:420,p:36,f:18},
+  "Chicken Parmesan":{c:580,p:44,f:26},"Eggplant Parmesan":{c:400,p:14,f:20},
+  "Butter Chicken":{c:520,p:36,f:26},"Beef Stir Fry":{c:480,p:34,f:22},
+  "Pesto Pasta":{c:520,p:16,f:24},"Bibimbap":{c:480,p:22,f:14},
+  "Whey Protein Shake":{c:160,p:30,f:3},"Mass Gainer Shake":{c:600,p:50,f:8},
+  "Pea Protein Shake":{c:220,p:30,f:4},"Blueprint Shake":{c:340,p:25,f:12},
+  "Chocolate Protein Shake":{c:200,p:28,f:5},"Vanilla Protein Shake":{c:190,p:27,f:4},
+  "Greek Yogurt":{c:150,p:17,f:4},"Cottage Cheese":{c:140,p:20,f:4},
+  "Hard Boiled Eggs":{c:140,p:12,f:10},"String Cheese":{c:80,p:7,f:5},
+  "Almonds":{c:160,p:6,f:14},"Peanut Butter Toast":{c:280,p:10,f:16},
+  "Apple & Almond Butter":{c:220,p:5,f:12},"Banana":{c:105,p:1,f:0},
+  "Mixed Nuts":{c:170,p:5,f:15},"Protein Bar":{c:200,p:20,f:7},
+  "Rice Cakes":{c:70,p:1,f:0},"Hummus & Veggies":{c:150,p:6,f:8},
+  "Cheese & Crackers":{c:200,p:8,f:12},"Beef Jerky":{c:80,p:14,f:2},
+  "Trail Mix":{c:180,p:5,f:11},"Edamame":{c:120,p:11,f:5},
+  "Smoothie":{c:280,p:6,f:4},"Fruit Salad":{c:100,p:1,f:0},
+  "Steamed Broccoli":{c:55,p:4,f:1},"Roasted Vegetables":{c:120,p:3,f:5},
+  "Mashed Potatoes":{c:210,p:4,f:8},"French Fries":{c:320,p:4,f:15},
+  "Sweet Potato":{c:180,p:4,f:0},"Brown Rice":{c:220,p:5,f:2},
+  "White Rice":{c:200,p:4,f:0},"Quinoa":{c:220,p:8,f:4},
+  "Garden Salad":{c:80,p:2,f:4},"Coleslaw":{c:150,p:1,f:10},
+  "Corn on the Cob":{c:130,p:5,f:2},"Mac Salad":{c:280,p:5,f:16},
+  "Garlic Bread":{c:180,p:4,f:8},"Dinner Roll":{c:120,p:3,f:2},
+  "Steamed Asparagus":{c:40,p:4,f:0},"Roasted Potatoes":{c:190,p:4,f:6},
+  "Caesar Side Salad":{c:150,p:4,f:12},"Grilled Zucchini":{c:60,p:2,f:3},
+  "Black Beans":{c:120,p:8,f:0},"Cucumber Salad":{c:60,p:1,f:3}
+};
+var DM={
+  Breakfast:["Scrambled Eggs","Pancakes","Waffles","Oatmeal","Avocado Toast","Bacon & Eggs","French Toast","Yogurt & Granola","Breakfast Burrito","Cereal","Bagel & Cream Cheese","Smoothie Bowl","Grits and Bacon","Quiche","Walnut & Berry Oatmeal","Macadamia Nut Smoothie","Almond Milk Chia Pudding","Breakfast Hash","Eggs Benedict","Protein Pancakes","Acai Bowl","Greek Yogurt Parfait"],
+  Lunch:["Tomato Soup","BLT","Tuna Wrap","Grilled Cheese Sandwich","Meatball Subs","Burgers","Fried Rice","Macaroni and Cheese","Caesar Salad","Turkey Sandwich","Chicken Quesadilla","Leftovers","Chicken Caesar Wrap","Philly Cheesesteak","Chicken Noodle Soup","Clam Chowder","Fish Tacos","Pulled Pork Sandwich","Greek Salad","Veggie Burger","Turkey Burger","Falafel Wrap","Chicken Shawarma","Sushi Bowl","Sardines & Greens","Lentil & Veggie Bowl"],
+  Dinner:["Tomato Soup","Burgers","Baked Ziti","Fried Chicken","Macaroni and Cheese","Salmon","Steak","Pizza","Beef Stew","Nutty Pudding","Super Veggie","Rotisserie Chicken","Chicken Cordon Bleu","Spaghetti and Meatballs","Meatball Subs","Tacos (Tuesday Exclusive)","Fried Rice","Shrimp Scampi","Shrimp and Grits","BLT","Grits and Bacon","Quiche","Tuna Wrap","Grilled Cheese Sandwich","Rice, Chicken & Guacamole","Risotto","Blueprint Nutty Pudding","Black Lentil Soup","Chickpea & Spinach Stew","Tempeh & Broccoli Stir Fry","Roasted Veggie & Quinoa Bowl","Sweet Potato & Black Bean Tacos","Olive Oil Pasta","Chicken Fried Rice","Honey Garlic Chicken","Beef Tacos","Chicken Tikka Masala","Pad Thai","BBQ Ribs","Lamb Chops","Crab Cakes","Lobster Roll","Vegetable Curry","Mushroom Risotto","Veggie Stir Fry","Teriyaki Salmon","Pork Chops","Turkey Meatloaf","Chicken Parmesan","Eggplant Parmesan","Butter Chicken","Beef Stir Fry","Pesto Pasta","Bibimbap"],
+  Snacks:["Whey Protein Shake","Pea Protein Shake","Blueprint Shake","Chocolate Protein Shake","Vanilla Protein Shake","Greek Yogurt","Cottage Cheese","Hard Boiled Eggs","String Cheese","Almonds","Peanut Butter Toast","Apple & Almond Butter","Banana","Mixed Nuts","Protein Bar","Rice Cakes","Hummus & Veggies","Cheese & Crackers","Beef Jerky","Trail Mix","Edamame","Smoothie","Fruit Salad"],
+  Sides:["Steamed Broccoli","Roasted Vegetables","Mashed Potatoes","French Fries","Sweet Potato","Brown Rice","White Rice","Quinoa","Garden Salad","Coleslaw","Corn on the Cob","Mac Salad","Garlic Bread","Dinner Roll","Steamed Asparagus","Roasted Potatoes","Caesar Side Salad","Grilled Zucchini","Black Beans","Cucumber Salad"]
+};
+
+var S={fid:null,me:null,mt:"Dinner",ft:"Dinner",fd:"Monday",nm:null,xday:null,pt:"Dinner",slot:null,
+  meals:JSON.parse(JSON.stringify(DM)),members:["Mom","Dad","Kid 1","Kid 2","Kid 3"],
+  poll:null,weeks:{},goals:{}};
+
+function gn(m){return NUT[m]||{c:300,p:15,f:10};}
+function fe(m){var h=0;for(var i=0;i<m.length;i++)h=(h*31+m.charCodeAt(i))|0;return FE[Math.abs(h)%FE.length];}
+function mc(n){return MC[S.members.indexOf(n)%MC.length];}
+function mw(){if(!S.me)return{};if(!S.weeks[S.me])S.weeks[S.me]={};return S.weeks[S.me];}
+function shuf(a){var r=a.slice();for(var i=r.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=r[i];r[i]=r[j];r[j]=t;}return r;}
+function toast(msg,bg){var t=document.getElementById("toast");t.textContent=msg;t.style.background=bg||"#8FAF7E";t.style.display="block";setTimeout(function(){t.style.display="none";},2500);}
+
+async function sbg(tbl,id){var r=await fetch(SB_URL+"/rest/v1/"+tbl+"?id=eq."+encodeURIComponent(id)+"&select=*",{headers:{"apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY}});var d=await r.json();return d&&d[0]||null;}
+async function sbu(tbl,data){await fetch(SB_URL+"/rest/v1/"+tbl,{method:"POST",headers:{"apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY,"Content-Type":"application/json","Prefer":"resolution=merge-duplicates"},body:JSON.stringify(data)});}
+async function sbga(tbl,fid){var r=await fetch(SB_URL+"/rest/v1/"+tbl+"?family_id=eq."+encodeURIComponent(fid)+"&select=*",{headers:{"apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY}});return await r.json()||[];}
+
+function syncDot(s){var d=document.querySelector(".sdot"),t=document.getElementById("synctxt");if(!d||!t)return;d.className="sdot"+(s==="syncing"?" syncing":s==="err"?" error":"");t.textContent=s==="syncing"?"Syncing...":s==="err"?"Sync error":"Synced";}
+async function pushFam(){syncDot("syncing");try{await sbu("families",{id:S.fid,meal_lists:S.meals,members:S.members,poll:S.poll,member_goals:S.goals});syncDot("ok");}catch(e){syncDot("err");}}
+async function pushWeek(n){syncDot("syncing");try{await sbu("member_weeks",{id:S.fid+"-"+n,family_id:S.fid,member_name:n,week_data:S.weeks[n]||{},updated_at:new Date().toISOString()});syncDot("ok");}catch(e){syncDot("err");}}
+async function pullAll(){
+  syncDot("syncing");
+  try{
+    var fam=await sbg("families",S.fid);
+    if(fam){
+      if(fam.meal_lists&&Object.keys(fam.meal_lists).length>0)S.meals=fam.meal_lists;
+      if(fam.members&&fam.members.length>0)S.members=fam.members;
+      S.poll=fam.poll||null;
+      if(fam.member_goals)S.goals=fam.member_goals;
+    }
+    var wks=await sbga("member_weeks",S.fid);
+    if(wks&&wks.length)wks.forEach(function(w){S.weeks[w.member_name]=w.week_data||{};});
+    syncDot("ok");renderAll();
+  }catch(e){syncDot("err");}
+}
+setInterval(function(){if(S.fid)pullAll();},15000);
+
+function closeSheets(){
+  document.getElementById("msheet").style.display="none";
+  document.getElementById("amsheet").style.display="none";
+  document.getElementById("gsheet").style.display="none";
+  document.getElementById("ov").style.display="none";
+}
+function openSheet(id){closeSheets();document.getElementById(id).style.display="flex";document.getElementById("ov").style.display="block";}
+
+function openMeal(day,type){
+  if(!S.me){toast("Pick your name first!","#F5A623");return;}
+  S.slot={day:day,type:type};
+  var tm=TM[type];
+  document.getElementById("mslabel").textContent=day+" - "+tm.e+" "+type;
+  document.getElementById("msaddbtn").style.background=tm.a;
+  document.getElementById("msearch").value="";
+  document.getElementById("msnew").value="";
+  renderMS();openSheet("msheet");
+  setTimeout(function(){document.getElementById("msearch").focus();},100);
+}
+function renderMS(){
+  if(!S.slot)return;
+  var day=S.slot.day,type=S.slot.type;
+  var q=document.getElementById("msearch").value.toLowerCase();
+  var all=S.meals[type]||[];
+  var shown=q?all.filter(function(m){return m.toLowerCase().indexOf(q)>=0;}):all;
+  var cur=(mw()[day]||{})[type]||"";
+  var tm=TM[type];
+  document.getElementById("mslist").innerHTML=shown.length===0&&q
+    ?'<div style="text-align:center;padding:20px;color:rgba(255,255,255,0.3);font-size:13px">No results for "'+q+'"</div>'
+    :shown.map(function(meal){
+      var n=gn(meal);var isc=meal===cur;
+      var ms=meal.replace(/'/g,"\\'");
+      return'<div class="meal-row'+(isc?" cur":"")+'" onclick="pickM(\''+ms+'\')">'
+        +'<span style="font-size:22px">'+fe(meal)+'</span>'
+        +'<div style="flex:1;min-width:0"><div style="color:#FDF6EC;font-weight:700;font-size:13px">'+meal+(isc?" ✓":"")+'</div>'
+        +'<div style="display:flex;gap:8px;margin-top:2px">'
+        +'<span style="font-size:10px;color:#F5A623;font-weight:700">'+n.c+'cal</span>'
+        +'<span style="font-size:10px;color:#8FAF7E;font-weight:700">'+n.p+'g pro</span>'
+        +'<span style="font-size:10px;color:#D4ABCF;font-weight:700">'+n.f+'g fat</span>'
+        +'</div></div>'
+        +'<div style="display:flex;gap:5px">'
+        +'<button onclick="event.stopPropagation();pickM(\''+ms+'\');" style="background:'+tm.a+';border:none;border-radius:7px;padding:5px 11px;font-weight:800;font-size:11px;color:'+(type==="Breakfast"?"#3D1A3A":"#fff")+'">Pick</button>'
+        +'<button onclick="event.stopPropagation();delM(\''+type+'\',\''+ms+'\');" style="background:rgba(255,255,255,0.07);border:none;border-radius:7px;padding:5px 8px;font-weight:800;font-size:11px;color:rgba(255,255,255,0.35)">x</button>'
+        +'</div></div>';
+    }).join("");
+}
+async function pickM(meal){
+  if(!S.slot||!S.me)return;
+  var day=S.slot.day,type=S.slot.type;
+  if(!S.weeks[S.me])S.weeks[S.me]={};
+  if(!S.weeks[S.me][day])S.weeks[S.me][day]={};
+  S.weeks[S.me][day][type]=meal;
+  closeSheets();renderPlanner();await pushWeek(S.me);
+}
+async function msAdd(){
+  var n=document.getElementById("msnew").value.trim();
+  if(!n||!S.slot)return;
+  var type=S.slot.type;
+  if(!S.meals[type])S.meals[type]=[];
+  if(S.meals[type].indexOf(n)<0)S.meals[type].push(n);
+  document.getElementById("msnew").value="";
+  document.getElementById("msearch").value=n;
+  renderMS();await pushFam();
+}
+async function delM(type,meal){
+  S.meals[type]=S.meals[type].filter(function(m){return m!==meal;});
+  renderMS();await pushFam();
+}
+
+function openAM(){openSheet("amsheet");setTimeout(function(){document.getElementById("aminput").focus();},100);}
+async function qadd(n){document.getElementById("aminput").value=n;await doAddMember();}
+async function doAddMember(){
+  var n=(document.getElementById("aminput").value||"").trim();if(!n)return;
+  if(S.members.indexOf(n)<0)S.members.push(n);
+  closeSheets();await pushFam();selMe(n);
+}
+async function delMember(n){
+  S.members=S.members.filter(function(m){return m!==n;});
+  delete S.weeks[n];delete S.goals[n];
+  if(S.me===n)S.me=null;
+  await pushFam();renderAll();
+}
+function selMe(n){
+  S.me=S.me===n?null:n;localStorage.setItem("fmp-me",S.me||"");
+  renderPlanner();renderVMbtns();
+  var lbl=document.getElementById("melabel");
+  if(S.me){lbl.style.display="block";lbl.style.color=mc(S.me);lbl.textContent="Planning as "+S.me+" 👋";}
+  else lbl.style.display="none";
+}
+function renderMbtns(id,fn,active){
+  var el=document.getElementById(id);if(!el)return;
+  el.innerHTML=S.members.map(function(m,i){
+    return'<div style="display:flex;margin-bottom:2px">'
+      +'<button class="mmbtn" style="'+(m===active?"background:"+mc(m)+";color:#fff":"")+'" onclick="'+fn+'(\''+m+'\')" >'+m+'</button>'
+      +'<button class="mmdel" onclick="delMember(\''+m+'\')">x</button>'
+      +'</div>';
+  }).join("")+'<button onclick="openAM()" style="display:flex;align-items:center;gap:6px;background:rgba(255,255,255,0.08);border:1.5px dashed #D4ABCF;border-radius:13px;padding:6px 12px;color:#D4ABCF;font-weight:700;font-size:12px;margin-bottom:2px"><span style="font-size:16px">+</span> Add Person</button>';
+}
+
+function openGoals(){
+  var g=S.goals[S.me]||{};
+  document.getElementById("gcal").value=g.cal||"";
+  document.getElementById("gpro").value=g.pro||"";
+  document.getElementById("gfat").value=g.fat||"";
+  openSheet("gsheet");
+}
+async function saveGoals(){
+  if(!S.me){toast("Pick your name first!","#F5A623");closeSheets();return;}
+  var cal=parseInt(document.getElementById("gcal").value)||0;
+  var pro=parseInt(document.getElementById("gpro").value)||0;
+  var fat=parseInt(document.getElementById("gfat").value)||0;
+  S.goals[S.me]={cal:cal,pro:pro,fat:fat};
+  closeSheets();toast("Goals saved! Smart Spin is now goal-matched 🎯","#8FAF7E");
+  renderPlanner();await pushFam();
+}
+
+function renderMtbar(){
+  ["mtbar","ftbar"].forEach(function(id){
+    var el=document.getElementById(id);if(!el)return;
+    var isF=id==="ftbar";var active=isF?S.ft:S.mt;
+    el.innerHTML=MTYPES.map(function(t){
+      var tm=TM[t];var isA=t===active;
+      return'<button class="mtype-btn" onclick="'+(isF?"setFT":"setMT")+'(\''+t+'\',this)" style="background:'+(isA?tm.a:"rgba(255,255,255,0.08)")+';color:'+(isA?"#3D1A3A":"#FDF6EC")+'">'+tm.e+' '+t+'</button>';
+    }).join("");
+  });
+}
+function setMT(t){S.mt=t;renderMtbar();renderPlanner();}
+function setFT(t){S.ft=t;renderMtbar();renderFam();}
+
+function renderGoalsBar(){
+  if(!S.me)return;
+  var g=S.goals[S.me];
+  var bar=document.getElementById("goalsbar"),disp=document.getElementById("goalsdisp");
+  if(!g||(!g.cal&&!g.pro&&!g.fat)){bar.style.display="none";return;}
+  bar.style.display="block";
+  var w=mw(),today=DAYS[new Date().getDay()===0?6:new Date().getDay()-1]||"Monday";
+  var dc=0,dp=0,df=0;
+  MTYPES.forEach(function(t){var m=(w[today]&&w[today][t])||"";if(m){var n=gn(m);dc+=n.c;dp+=n.p;df+=n.f;}});
+  var parts=[];
+  if(g.cal)parts.push('<div style="flex:1"><div style="display:flex;justify-content:space-between"><span style="font-size:10px;font-weight:800;color:#F5A623">CAL</span><span style="font-size:11px;font-weight:800;color:#F5A623">'+dc+'/'+g.cal+'</span></div><div class="gtrack"><div class="gfill" style="width:'+Math.min((dc/g.cal)*100,100)+'%;background:'+(dc>g.cal?"#F08080":"#F5A623")+'"></div></div></div>');
+  if(g.pro)parts.push('<div style="flex:1"><div style="display:flex;justify-content:space-between"><span style="font-size:10px;font-weight:800;color:#8FAF7E">PRO</span><span style="font-size:11px;font-weight:800;color:#8FAF7E">'+dp+'g/'+g.pro+'g</span></div><div class="gtrack"><div class="gfill" style="width:'+Math.min((dp/g.pro)*100,100)+'%;background:#8FAF7E"></div></div></div>');
+  if(g.fat)parts.push('<div style="flex:1"><div style="display:flex;justify-content:space-between"><span style="font-size:10px;font-weight:800;color:#D4ABCF">FAT</span><span style="font-size:11px;font-weight:800;color:#D4ABCF">'+df+'g/'+g.fat+'g</span></div><div class="gtrack"><div class="gfill" style="width:'+Math.min((df/g.fat)*100,100)+'%;background:#D4ABCF"></div></div></div>');
+  disp.innerHTML=parts.join("");
+}
+
+async function smartSpin(){
+  if(!S.me){toast("Pick your name first!","#F5A623");return;}
+  var g=S.goals[S.me]||{};var hasG=g.cal||g.pro;
+  document.querySelectorAll(".dc").forEach(function(c){c.classList.add("flip");});
+  setTimeout(async function(){
+    if(!S.weeks[S.me])S.weeks[S.me]={};
+    DAYS.forEach(function(day){
+      if(!S.weeks[S.me][day])S.weeks[S.me][day]={};
+      MTYPES.forEach(function(type){
+        var pool=S.meals[type]||[];if(!pool.length)return;
+        if(hasG&&type!=="Snacks"&&type!=="Sides"){
+          var tCal=(g.cal||2000)/3,tPro=(g.pro||100)/3;
+          var cands=shuf(pool).slice(0,Math.min(pool.length,10));
+          var best=cands[0],bestS=999999;
+          cands.forEach(function(m){
+            var n=gn(m);
+            var cd=Math.abs(n.c-tCal)/(tCal||1);
+            var pd=g.pro?Math.abs(n.p-tPro)/(tPro||1):0;
+            var sc=cd+pd;if(sc<bestS){bestS=sc;best=m;}
+          });
+          S.weeks[S.me][day][type]=best;
+        } else {
+          S.weeks[S.me][day][type]=pool[Math.floor(Math.random()*pool.length)];
+        }
+      });
+    });
+    renderPlanner();await pushWeek(S.me);
+    if(hasG)toast("Smart Spin matched your goals! 🎯","#8FAF7E");
+  },280);
+}
+
+async function spinOne(day,type){
+  if(!S.me)return;
+  var pool=S.meals[type]||[];if(!pool.length)return;
+  if(!S.weeks[S.me])S.weeks[S.me]={};
+  if(!S.weeks[S.me][day])S.weeks[S.me][day]={};
+  S.weeks[S.me][day][type]=pool[Math.floor(Math.random()*pool.length)];
+  renderPlanner();await pushWeek(S.me);
+}
+
+function renderPlanner(){
+  renderMbtns("mbtns","selMe",S.me);renderMtbar();renderGoalsBar();
+  var grid=document.getElementById("dgrid");if(!grid)return;
+  var type=S.mt,tm=TM[type],w=S.weeks[S.me]||{};
+  grid.innerHTML=DAYS.map(function(day){
+    var meal=(w[day]&&w[day][type])||"";var n=meal?gn(meal):null;
+    return'<div class="dc">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">'
+      +'<span style="font-size:10px;font-weight:800;color:'+tm.lb+';letter-spacing:2px;text-transform:uppercase">'+day+'</span>'
+      +'<span style="font-size:10px;color:rgba(0,0,0,0.2);background:'+tm.l+';border-radius:5px;padding:1px 5px">'+tm.e+'</span></div>'
+      +'<div style="font-size:22px;margin-bottom:2px">'+(meal?fe(meal):"❓")+'</div>'
+      +'<div style="font-size:12px;font-weight:800;color:'+(meal?"#2C2C2C":"#bbb")+';min-height:30px;margin-bottom:7px;line-height:1.3">'+(meal||"Not picked")+'</div>'
+      +(n?'<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:7px">'
+        +'<span style="font-size:9px;font-weight:800;color:#c8921e;background:rgba(245,166,35,0.1);border-radius:4px;padding:1px 4px">'+n.c+'cal</span>'
+        +'<span style="font-size:9px;font-weight:800;color:#5a8a4a;background:rgba(143,175,126,0.1);border-radius:4px;padding:1px 4px">'+n.p+'g pro</span>'
+        +'<span style="font-size:9px;font-weight:800;color:#9c5a94;background:rgba(212,171,207,0.1);border-radius:4px;padding:1px 4px">'+n.f+'g fat</span></div>':"")
+      +'<div style="display:flex;gap:5px">'
+      +'<button onclick="openMeal(\''+day+'\',\''+type+'\')" style="flex:1;background:'+tm.l+';border:1.5px solid '+tm.a+';border-radius:6px;padding:5px 0;font-size:11px;color:'+tm.lb+';font-weight:800;opacity:'+(S.me?1:0.4)+'">&#9999;&#65039; Edit</button>'
+      +'<button onclick="spinOne(\''+day+'\',\''+type+'\')" style="background:transparent;border:1.5px solid rgba(0,0,0,0.1);border-radius:6px;padding:5px 9px;font-size:12px;color:#666;opacity:'+(S.me?1:0.4)+'">&#127922;</button>'
+      +'</div></div>';
+  }).join("");
+  var btn=document.getElementById("spinbtn");if(!btn)return;
+  var hg=S.me&&S.goals[S.me]&&(S.goals[S.me].cal||S.goals[S.me].pro);
+  if(!S.me){btn.textContent="Pick your name first 👆";btn.style.background="#666";btn.style.boxShadow="none";}
+  else if(hg){btn.innerHTML="&#127919; Smart Spin (Goal-Matched)";btn.style.background="#8FAF7E";btn.style.boxShadow="0 4px 18px rgba(143,175,126,0.4)";}
+  else{btn.innerHTML="&#127922; Spin My Whole Week";btn.style.background="#F5A623";btn.style.boxShadow="0 4px 18px rgba(245,166,35,0.4)";}
+}
+
+function renderNmbtns(){
+  var el=document.getElementById("nmbtns");if(!el)return;
+  el.innerHTML=S.members.map(function(m,i){return'<button onclick="selNM(\''+m+'\')" style="background:'+(S.nm===m?MC[i%MC.length]:"rgba(255,255,255,0.1)")+';color:'+(S.nm===m?"#fff":"#FDF6EC")+';border:none;border-radius:18px;padding:8px 18px;font-weight:800;font-size:14px">'+m+'</button>';}).join("");
+}
+function selNM(n){S.nm=S.nm===n?null:n;renderNmbtns();renderNcontent();}
+function togDay(d){S.xday=S.xday===d?null:d;renderNcontent();}
+function renderNcontent(){
+  var el=document.getElementById("ncontent");if(!el)return;
+  if(!S.nm){el.innerHTML='<p style="color:#D4ABCF;text-align:center;font-size:14px;margin-top:40px">Select someone above.</p>';return;}
+  var w=S.weeks[S.nm]||{},g=S.goals[S.nm]||{};
+  var tC=0,tP=0,tF=0,cnt=0;
+  var days=DAYS.map(function(day){
+    var cal=0,pro=0,fat=0,meals=[];
+    MTYPES.forEach(function(t){var m=(w[day]&&w[day][t])||"";if(m){var n=gn(m);cal+=n.c;pro+=n.p;fat+=n.f;cnt++;meals.push({type:t,meal:m,c:n.c,p:n.p,f:n.f});}});
+    tC+=cal;tP+=pro;tF+=fat;return{day:day,cal:cal,pro:pro,fat:fat,meals:meals};
+  });
+  if(!cnt){el.innerHTML='<p style="color:#D4ABCF;text-align:center;font-size:13px;margin-top:30px">No meals planned for '+S.nm+' yet.</p>';return;}
+  var aC=Math.round(tC/7),aP=Math.round(tP/7),aF=Math.round(tF/7);
+  var maxD=Math.max.apply(null,days.map(function(d){return d.cal;}).concat([1]));
+  var out='<div style="display:flex;gap:8px;margin-bottom:12px">';
+  out+=[["Avg Cal",aC," kcal","#F5A623",2500],["Avg Pro",aP,"g","#8FAF7E",150],["Avg Fat",aF,"g","#D4ABCF",100]].map(function(x){
+    return'<div style="flex:1;background:rgba(255,255,255,0.07);border-radius:12px;padding:10px 8px;text-align:center">'
+      +'<div style="color:'+x[3]+';font-size:16px;font-weight:800">'+x[1]+'<span style="font-size:10px">'+x[2]+'</span></div>'
+      +'<div style="color:rgba(255,255,255,0.4);font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:1px;margin-top:2px">'+x[0]+'</div>'
+      +'<div style="background:rgba(255,255,255,0.1);border-radius:3px;height:4px;margin-top:5px"><div style="width:'+Math.min((x[1]/x[4])*100,100)+'%;background:'+x[3]+';border-radius:3px;height:100%"></div></div></div>';
+  }).join("");
+  out+='</div>';
+  if(g.cal||g.pro||g.fat){
+    out+='<div style="background:rgba(245,166,35,0.08);border:1px solid rgba(245,166,35,0.2);border-radius:12px;padding:10px 12px;margin-bottom:14px">'
+      +'<div style="font-size:11px;font-weight:800;color:#F5A623;margin-bottom:8px">🎯 Goals vs Average</div>'
+      +'<div style="display:flex;gap:10px">';
+    if(g.cal)out+='<div style="flex:1"><div style="display:flex;justify-content:space-between;margin-bottom:2px"><span style="font-size:9px;color:#F5A623;font-weight:800">CAL</span><span style="font-size:10px;color:#F5A623;font-weight:800">'+aC+'/'+g.cal+'</span></div><div style="background:rgba(255,255,255,0.1);border-radius:4px;height:6px"><div style="width:'+Math.min((aC/g.cal)*100,100)+'%;background:'+(aC>g.cal?"#F08080":"#F5A623")+';border-radius:4px;height:100%"></div></div></div>';
+    if(g.pro)out+='<div style="flex:1"><div style="display:flex;justify-content:space-between;margin-bottom:2px"><span style="font-size:9px;color:#8FAF7E;font-weight:800">PRO</span><span style="font-size:10px;color:#8FAF7E;font-weight:800">'+aP+'g/'+g.pro+'g</span></div><div style="background:rgba(255,255,255,0.1);border-radius:4px;height:6px"><div style="width:'+Math.min((aP/g.pro)*100,100)+'%;background:#8FAF7E;border-radius:4px;height:100%"></div></div></div>';
+    if(g.fat)out+='<div style="flex:1"><div style="display:flex;justify-content:space-between;margin-bottom:2px"><span style="font-size:9px;color:#D4ABCF;font-weight:800">FAT</span><span style="font-size:10px;color:#D4ABCF;font-weight:800">'+aF+'g/'+g.fat+'g</span></div><div style="background:rgba(255,255,255,0.1);border-radius:4px;height:6px"><div style="width:'+Math.min((aF/g.fat)*100,100)+'%;background:#D4ABCF;border-radius:4px;height:100%"></div></div></div>';
+    out+='</div></div>';
+  }
+  out+=days.map(function(d){
+    var isO=S.xday===d.day,bc=d.cal>2200?"#F08080":d.cal>1400?"#F5A623":"#8FAF7E";
+    var det=d.meals.map(function(m){
+      var tm=TM[m.type];
+      return'<div style="margin-bottom:10px"><div style="font-size:10px;font-weight:800;color:'+tm.lb+';text-transform:uppercase;letter-spacing:1px;margin-bottom:5px">'+tm.e+' '+m.type+'</div>'
+        +'<div style="background:rgba(255,255,255,0.06);border-radius:10px;padding:10px 12px">'
+        +'<div style="display:flex;align-items:center;gap:9px;margin-bottom:8px"><span style="font-size:22px">'+fe(m.meal)+'</span><span style="font-weight:800;font-size:14px">'+m.meal+'</span></div>'
+        +'<div style="display:flex;gap:8px">'
+        +[["Cal",m.c,"","#F5A623",900],["Pro",m.p,"g","#8FAF7E",60],["Fat",m.f,"g","#D4ABCF",50]].map(function(x){
+          return'<div style="flex:1"><div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="font-size:9px;font-weight:800;color:rgba(255,255,255,0.4);text-transform:uppercase">'+x[0]+'</span><span style="font-size:11px;font-weight:800;color:'+x[3]+'">'+x[1]+x[2]+'</span></div>'
+            +'<div style="background:rgba(255,255,255,0.1);border-radius:4px;height:6px"><div style="width:'+Math.min((x[1]/x[4])*100,100)+'%;background:'+x[3]+';border-radius:4px;height:100%"></div></div></div>';
+        }).join("")
+        +'</div></div></div>';
+    }).join("");
+    if(d.meals.length>1){
+      det+='<div style="background:rgba(255,255,255,0.06);border-radius:10px;padding:10px 12px">'
+        +'<div style="color:rgba(255,255,255,0.4);font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;margin-bottom:7px">Day Total</div>'
+        +'<div style="display:flex;gap:8px">'
+        +[["Cal",d.cal," kcal","#F5A623",2500],["Pro",d.pro,"g","#8FAF7E",150],["Fat",d.fat,"g","#D4ABCF",100]].map(function(x){
+          return'<div style="flex:1"><div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="font-size:9px;font-weight:800;color:rgba(255,255,255,0.4);text-transform:uppercase">'+x[0]+'</span><span style="font-size:11px;font-weight:800;color:'+x[3]+'">'+x[1]+x[2]+'</span></div>'
+            +'<div style="background:rgba(255,255,255,0.1);border-radius:4px;height:6px"><div style="width:'+Math.min((x[1]/x[4])*100,100)+'%;background:'+x[3]+';border-radius:4px;height:100%"></div></div></div>';
+        }).join("")
+        +'</div></div>';
+    }
+    return'<div class="nday'+(isO?" open":"")+'" onclick="togDay(\''+d.day+'\')">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:'+(d.cal>0?8:0)+'px">'
+      +'<div style="display:flex;align-items:center;gap:8px"><span style="font-weight:800;font-size:14px">'+d.day+'</span>'+(d.meals.length===0?'<span style="color:rgba(255,255,255,0.25);font-size:11px">No meals</span>':"")+'</div>'
+      +'<div style="display:flex;align-items:center;gap:8px">'+(d.cal>0?'<span style="font-size:11px;font-weight:800;color:#F5A623">'+d.cal+'cal</span><span style="font-size:11px;font-weight:800;color:#8FAF7E">'+d.pro+'g</span><span style="font-size:11px;font-weight:800;color:#D4ABCF">'+d.fat+'g fat</span>':"")
+      +'<span style="color:rgba(255,255,255,0.3)">'+(isO?"▲":"▼")+'</span></div></div>'
+      +(d.cal>0?'<div style="display:flex;gap:4px"><div style="flex:'+d.cal+';background:'+bc+';border-radius:3px;height:5px"></div><div style="flex:'+Math.max(maxD-d.cal,1)+';background:rgba(255,255,255,0.08);border-radius:3px;height:5px"></div></div>':"")
+      +'</div>'
+      +'<div class="ndet'+(isO?" open":"")+'">'+det+'</div>';
+  }).join("");
+  el.innerHTML=out;
+}
+
+function setFD(d){S.fd=d;renderFam();}
+function renderFam(){
+  renderMtbar();
+  var db=document.getElementById("fdaybtns");if(!db)return;
+  db.innerHTML=DAYS.map(function(d){return'<button onclick="setFD(\''+d+'\')" style="background:'+(S.fd===d?"#F5A623":"rgba(255,255,255,0.1)")+';color:'+(S.fd===d?"#3D1A3A":"#FDF6EC")+';border:none;border-radius:18px;padding:6px 12px;font-weight:800;font-size:12px">'+d.slice(0,3)+'</button>';}).join("");
+  var tm=TM[S.ft];
+  document.getElementById("fhdr").innerHTML='<div style="font-size:19px;font-weight:800">'+tm.e+' '+S.fd+' '+S.ft+'</div><div style="color:#D4ABCF;font-size:12px">What everyone picked</div>';
+  document.getElementById("fcards").innerHTML=S.members.map(function(member,idx){
+    var meal=(S.weeks[member]&&S.weeks[member][S.fd]&&S.weeks[member][S.fd][S.ft])||"";
+    var color=MC[idx%MC.length];var n=meal?gn(meal):null;
+    return'<div style="background:#FDF6EC;border-radius:14px;padding:13px 12px;box-shadow:0 2px 10px rgba(0,0,0,.15);border-top:4px solid '+color+'">'
+      +'<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px"><div style="width:24px;height:24px;border-radius:50%;background:'+color+';display:flex;align-items:center;justify-content:center;font-weight:800;font-size:10px;color:#fff">'+member[0]+'</div><span style="font-weight:800;font-size:12px;color:#2C2C2C">'+member+'</span></div>'
+      +(meal?'<div style="font-size:24px;margin-bottom:2px">'+fe(meal)+'</div><div style="font-size:12px;font-weight:800;color:#2C2C2C;margin-bottom:6px;line-height:1.3">'+meal+'</div>'
+        +(n?'<div style="display:flex;gap:3px;flex-wrap:wrap"><span style="font-size:9px;font-weight:800;color:#c8921e;background:rgba(245,166,35,0.1);border-radius:3px;padding:1px 4px">'+n.c+'cal</span><span style="font-size:9px;font-weight:800;color:#5a8a4a;background:rgba(143,175,126,0.1);border-radius:3px;padding:1px 4px">'+n.p+'g pro</span><span style="font-size:9px;font-weight:800;color:#9c5a94;background:rgba(212,171,207,0.1);border-radius:3px;padding:1px 4px">'+n.f+'g fat</span></div>':"")
+        :'<div style="font-size:24px;margin-bottom:2px">❓</div><div style="font-size:11px;color:#bbb;font-weight:600">Not picked</div>')
+      +'</div>';
+  }).join("");
+  var tbl=document.getElementById("ftable");if(!tbl)return;
+  tbl.innerHTML='<thead><tr><th style="color:#D4ABCF;font-size:10px;text-align:left;padding:0 8px 4px;font-weight:800;text-transform:uppercase;letter-spacing:1px">Day</th>'
+    +S.members.map(function(m,i){return'<th style="color:'+MC[i%MC.length]+';font-size:11px;font-weight:800;text-align:left;padding:0 8px 4px">'+m+'</th>';}).join("")+'</tr></thead>'
+    +'<tbody>'+DAYS.map(function(day){
+      var ia=day===S.fd;
+      return'<tr><td style="color:#FDF6EC;font-weight:800;font-size:12px;padding:8px;border-radius:8px 0 0 8px;background:'+(ia?"rgba(255,255,255,0.1)":"rgba(255,255,255,0.04)")+'">'+day.slice(0,3)+'</td>'
+        +S.members.map(function(m){var meal=(S.weeks[m]&&S.weeks[m][day]&&S.weeks[m][day][S.ft])||"";return'<td style="padding:8px;background:'+(ia?"rgba(255,255,255,0.07)":"rgba(255,255,255,0.02)")+';font-size:12px;font-weight:600;color:'+(meal?"#FDF6EC":"rgba(255,255,255,0.2)")+'">'+(meal?fe(meal)+" "+meal:"—")+'</td>';}).join("")+'</tr>';
+    }).join("")+'</tbody>';
+}
+
+function selPM(n){S.me=S.me===n?null:n;localStorage.setItem("fmp-me",S.me||"");renderVMbtns();renderPoll();}
+function renderVMbtns(){
+  var el=document.getElementById("vmbtns");if(!el)return;
+  el.innerHTML=S.members.map(function(m,i){return'<button onclick="selPM(\''+m+'\')" style="background:'+(S.me===m?MC[i%MC.length]:"rgba(255,255,255,0.1)")+';color:'+(S.me===m?"#fff":"#FDF6EC")+';border:none;border-radius:16px;padding:6px 14px;font-weight:800;font-size:13px">'+m+'</button>';}).join("")
+    +'<button onclick="openAM()" style="background:rgba(255,255,255,0.08);border:1.5px dashed #D4ABCF;border-radius:16px;padding:6px 12px;color:#D4ABCF;font-weight:700;font-size:12px;margin-left:2px">+ Add</button>';
+  var lbl=document.getElementById("vmelbl");
+  if(S.me){lbl.style.display="block";lbl.style.color=mc(S.me);lbl.textContent="Voting as "+S.me;}
+  else lbl.style.display="none";
+}
+function setPT(t){S.pt=t;renderPoll();}
+async function createPoll(){
+  var pool=S.meals[S.pt]||[];if(pool.length<2)return;
+  S.poll={opts:shuf(pool).slice(0,6).map(function(m){return{meal:m,votes:{}};}),locked:false,type:S.pt};
+  await pushFam();renderPoll();toast(S.pt+" poll started!","#8FAF7E");
+}
+async function pollVote(idx){
+  if(!S.me||!S.poll||S.poll.locked)return;
+  var o=S.poll.opts[idx];if(o.votes[S.me])delete o.votes[S.me];else o.votes[S.me]=true;
+  await pushFam();renderPoll();
+}
+async function lockPoll(){S.poll.locked=true;await pushFam();toast("Results locked! 🏆","#F5A623");renderPoll();}
+async function resetPoll(){S.poll=null;await pushFam();renderPoll();}
+function renderPoll(){
+  var el=document.getElementById("vcontent");if(!el)return;
+  if(!S.poll){
+    el.innerHTML='<div style="text-align:center;padding:24px 0">'
+      +'<p style="color:#D4ABCF;font-size:14px;margin-bottom:14px">Choose a meal type and start a vote.</p>'
+      +'<div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-bottom:18px">'
+      +MTYPES.map(function(t){var tm=TM[t];return'<button onclick="setPT(\''+t+'\')" style="background:'+(S.pt===t?tm.a:"rgba(255,255,255,0.1)")+';color:'+(S.pt===t?"#3D1A3A":"#FDF6EC")+';border:none;border-radius:18px;padding:8px 14px;font-weight:800;font-size:13px">'+tm.e+' '+t+'</button>';}).join("")
+      +'</div>'
+      +'<button onclick="createPoll()" style="background:#F5A623;color:#3D1A3A;border:none;border-radius:50px;padding:12px 30px;font-size:15px;font-weight:800;box-shadow:0 4px 18px rgba(245,166,35,0.4)">🗳️ Start '+S.pt+' Poll</button>'
+      +'</div>';return;
+  }
+  var p=S.poll,tm=TM[p.type];
+  var allV=p.opts.map(function(o){return Object.keys(o.votes).length;});
+  var totV=allV.reduce(function(a,b){return a+b;},0),maxV=Math.max.apply(null,allV.concat([1]));
+  var winM=p.locked?p.opts.reduce(function(a,b){return Object.keys(a.votes).length>=Object.keys(b.votes).length?a:b;}).meal:null;
+  var out='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'
+    +'<div style="font-weight:800;font-size:14px">'+tm.e+' '+(p.locked?p.type+' Results 🏆':'Vote for '+p.type+'!')+'</div>'
+    +'<div style="display:flex;gap:6px">'
+    +(!p.locked?'<button onclick="lockPoll()" style="background:#8FAF7E;color:#fff;border:none;border-radius:8px;padding:5px 12px;font-weight:800;font-size:12px">🔒 Lock</button>':"")
+    +'<button onclick="resetPoll()" style="background:rgba(255,255,255,0.08);color:#D4ABCF;border:none;border-radius:8px;padding:5px 11px;font-weight:700;font-size:12px">Reset</button>'
+    +'</div></div>';
+  out+=p.opts.map(function(opt,idx){
+    var vc=Object.keys(opt.votes).length,voters=Object.keys(opt.votes);
+    var iV=S.me&&opt.votes[S.me],isW=opt.meal===winM;
+    var pct=p.locked?Math.round((vc/Math.max(totV,1))*100):(vc/maxV)*100;
+    return'<div class="popt'+(iV?" voted":"")+(isW?" winner":"")+'" onclick="pollVote('+idx+')">'
+      +'<div class="pbar" style="width:'+pct+'%"></div>'
+      +'<div style="position:relative;display:flex;align-items:center;justify-content:space-between;gap:9px">'
+      +'<div style="display:flex;align-items:center;gap:8px">'
+      +'<span style="font-size:20px">'+fe(opt.meal)+'</span>'
+      +'<div><div style="font-weight:800;font-size:13px">'+(isW?"🏆 ":"")+opt.meal+'</div>'
+      +(voters.length>0?'<div style="color:#D4ABCF;font-size:10px;margin-top:1px">'+voters.join(", ")+'</div>':"")
+      +'</div></div>'
+      +'<div style="display:flex;align-items:center;gap:6px">'
+      +(p.locked?'<span style="color:'+(isW?"#F5A623":"#D4ABCF")+';font-weight:800;font-size:12px">'+pct+'%</span>':"")
+      +'<div style="background:'+(iV?tm.a:"rgba(255,255,255,0.12)")+';color:'+(iV?"#fff":"#D4ABCF")+';border-radius:16px;padding:3px 10px;font-weight:800;font-size:12px">'+(iV?"✓ ":"")+(vc>0?vc:p.locked?"0":"Vote")+'</div>'
+      +'</div></div></div>';
+  }).join("");
+  if(!p.locked){
+    var voted={};p.opts.forEach(function(o){Object.keys(o.votes).forEach(function(x){voted[x]=true;});});
+    var waiting=S.members.filter(function(m){return!voted[m];});
+    out+='<div style="background:rgba(255,255,255,0.04);border-radius:10px;padding:9px 13px;margin-top:4px">'
+      +(waiting.length>0?'<span style="color:#D4ABCF;font-size:12px;font-weight:700">Waiting on: '+waiting.join(", ")+'</span>'
+      :'<span style="color:#8FAF7E;font-size:12px;font-weight:700">Everyone voted! Lock to see results.</span>')
+      +'</div>';
+  }
+  el.innerHTML=out;
+}
+
+function showTab(n){
+  ["p","n","f","v"].forEach(function(t){
+    var el=document.getElementById("tab-"+t);if(el)el.style.display=t===n?"block":"none";
+    var btn=document.getElementById("t-"+t);if(btn){btn.style.background="rgba(255,255,255,0.08)";btn.style.color="#FDF6EC";}
+  });
+  var colors={p:"#F5A623",n:"#F5A623",f:"#7BBFEA",v:"#F5A623"};
+  var btn=document.getElementById("t-"+n);if(btn){btn.style.background=colors[n];btn.style.color=n==="f"?"#fff":"#3D1A3A";}
+  if(n==="f"){renderMtbar();renderFam();}
+  if(n==="n"){renderNmbtns();renderNcontent();}
+  if(n==="v"){renderVMbtns();renderPoll();}
+}
+
+function fcErr(msg){var el=document.getElementById("fcerr");el.textContent=msg;el.style.display=msg?"block":"none";}
+function genCode(n){return n.toUpperCase().replace(/[^A-Z]/g,"").slice(0,6)+(Math.floor(100+Math.random()*900));}
+async function createFam(){
+  var name=document.getElementById("fname").value.trim();if(!name){fcErr("Enter a family name!");return;}
+  var code=genCode(name);fcErr("");
+  try{await sbu("families",{id:code,meal_lists:DM,members:["Mom","Dad","Kid 1","Kid 2","Kid 3"],poll:null,member_goals:{}});localStorage.setItem("fmp-family-id",code);S.fid=code;await pullAll();showApp();toast("Family created! Code: "+code,"#8FAF7E");}
+  catch(e){fcErr("Error creating family.");}
+}
+async function joinFam(){
+  var code=document.getElementById("jcode").value.trim().toUpperCase();if(!code){fcErr("Enter a code!");return;}
+  try{var fam=await sbg("families",code);if(!fam){fcErr("Code not found.");return;}localStorage.setItem("fmp-family-id",code);S.fid=code;await pullAll();showApp();toast("Joined family!","#8FAF7E");}
+  catch(e){fcErr("Error joining.");}
+}
+function leaveFam(){if(!confirm("Leave this family?"))return;localStorage.removeItem("fmp-family-id");localStorage.removeItem("fmp-me");S.fid=null;S.me=null;document.getElementById("app").style.display="none";document.getElementById("fcscreen").style.display="flex";}
+function showApp(){document.getElementById("fcscreen").style.display="none";document.getElementById("app").style.display="block";document.getElementById("fcdisplay").textContent="Code: "+S.fid;var sm=localStorage.getItem("fmp-me");if(sm)S.me=sm;renderAll();}
+function renderAll(){renderMtbar();renderPlanner();renderNmbtns();renderNcontent();renderFam();renderVMbtns();renderPoll();}
+
+var sfid=localStorage.getItem("fmp-family-id");
+if(sfid){S.fid=sfid;document.getElementById("fcscreen").style.display="none";document.getElementById("app").style.display="block";document.getElementById("fcdisplay").textContent="Code: "+sfid;var sm=localStorage.getItem("fmp-me");if(sm)S.me=sm;pullAll();}
+else{document.getElementById("fcscreen").style.display="flex";document.getElementById("app").style.display="none";}
+</script>
+</body>
+</html>
