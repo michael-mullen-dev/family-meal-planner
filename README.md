@@ -28,4 +28,5 @@ A mobile-friendly web app that lets a whole family plan their meals for the week
 
 My family kept going back and forth about what to eat each week, and some of us were tracking nutrition goals. I built this so everyone could plan in one place, see each other's plans, and hit their goals without extra effort.
 
-![Uploading image.png…]()
+<img width="1164" height="772" alt="image" src="https://github.com/user-attachments/assets/c9dbba2e-361d-47ac-89a6-42543fe09870" />
+
